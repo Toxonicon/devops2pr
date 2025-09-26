@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+  # Основное приложение - production
+  main-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: tutor-main-app-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    depends_on:
+      notification-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+    networks:
+      - tutor-prod-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/users", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.main-app.rule=Host(`tutor-platform.local`)"
+      - "traefik.http.services.main-app.loadbalancer.server.port=3000"
+
+  # Микросервис уведомлений - production
+  notification-service:
+    build:
+      context: ./microservices/notification-service
+      dockerfile: Dockerfile.prod
+    container_name: tutor-notifications-prod
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MAIN_APP_URL=http://main-app:3000
+    networks:
+      - tutor-prod-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    labels:
+      - "service=notification"
+      - "version=1.0.0"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Микросервис аналитики - production
+  analytics-service:
+    build:
+      context: ./microservices/analytics-service
+      dockerfile: Dockerfile.prod
+    container_name: tutor-analytics-prod
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - MAIN_APP_URL=http://main-app:3000
+    networks:
+      - tutor-prod-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    labels:
+      - "service=analytics"
+      - "version=1.0.0"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Redis для кеширования (опционально)
+  redis:
+    image: redis:7-alpine
+    container_name: tutor-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - tutor-prod-network
+    restart: always
+    command: redis-server --appendonly yes --requirepass "tutor_redis_pass"
+    volumes:
+      - redis_data:/data
+    profiles:
+      - "with-redis"
+
+  # Nginx как reverse proxy и load balancer
+  nginx:
+    image: nginx:alpine
+    container_name: tutor-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      main-app:
+        condition: service_healthy
+    networks:
+      - tutor-prod-network
+    restart: always
+    profiles:
+      - "with-nginx"
+
+networks:
+  tutor-prod-network:
+    driver: bridge
+    name: tutor-platform-prod-network
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  redis_data:
+    driver: local
