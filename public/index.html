@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Связь Репетитора и Учеников</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: #5a67d8;
+        }
+
+        .btn-secondary {
+            background: #48bb78;
+        }
+
+        .btn-secondary:hover {
+            background: #38a169;
+        }
+
+        .messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .message.tutor {
+            background: #e6fffa;
+            border-left-color: #38b2ac;
+        }
+
+        .message.student {
+            background: #f0fff4;
+            border-left-color: #48bb78;
+        }
+
+        .message-header {
+            font-weight: bold;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .users-list, .sessions-list {
+            background: #f7fafc;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .user-item, .session-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .tutor-badge {
+            background: #38b2ac;
+            color: white;
+        }
+
+        .student-badge {
+            background: #48bb78;
+            color: white;
+        }
+
+        .online-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #48bb78;
+            margin-right: 8px;
+        }
+
+        .offline-indicator {
+            background: #a0aec0;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .session-students {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>🎓 Платформа Репетитора</h1>
+                <p>Простая связь между репетиторами и учениками</p>
+            </div>
+
+            <!-- Форма входа -->
+            <div v-if="!user" class="card login-form">
+                <h2>Вход в систему</h2>
+                <form @submit.prevent="login">
+                    <div class="form-group">
+                        <label for="name">Ваше имя:</label>
+                        <input type="text" id="name" v-model="loginForm.name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="role">Кто вы:</label>
+                        <select id="role" v-model="loginForm.role" required>
+                            <option value="">Выберите роль</option>
+                            <option value="tutor">Репетитор</option>
+                            <option value="student">Ученик</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn">Войти</button>
+                </form>
+            </div>
+
+            <!-- Главная страница -->
+            <div v-if="user">
+                <div class="card">
+                    <h2>Добро пожаловать, {{ user.name }}!</h2>
+                    <p>Роль: <span class="user-badge" :class="user.role + '-badge'">{{ user.role === 'tutor' ? 'Репетитор' : 'Ученик' }}</span></p>
+                </div>
+
+                <div class="grid">
+                    <!-- Чат -->
+                    <div class="card">
+                        <h3>💬 Общий чат</h3>
+                        <div class="messages" ref="messagesContainer">
+                            <div v-for="message in messages" :key="message.id" 
+                                 class="message" :class="message.userRole">
+                                <div class="message-header">
+                                    {{ message.userName }} ({{ message.userRole === 'tutor' ? 'Репетитор' : 'Ученик' }})
+                                    <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                                </div>
+                                <div>{{ message.text }}</div>
+                            </div>
+                        </div>
+                        <form @submit.prevent="sendMessage" style="margin-top: 10px;">
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" v-model="newMessage" placeholder="Введите сообщение..." required>
+                                <button type="submit" class="btn">Отправить</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Пользователи онлайн -->
+                    <div class="card">
+                        <h3>👥 Пользователи онлайн</h3>
+                        <div class="users-list">
+                            <div v-for="u in users" :key="u.id" class="user-item">
+                                <div style="display: flex; align-items: center;">
+                                    <div class="online-indicator" :class="{ 'offline-indicator': !u.online }"></div>
+                                    {{ u.name }}
+                                </div>
+                                <span class="user-badge" :class="u.role + '-badge'">
+                                    {{ u.role === 'tutor' ? 'Репетитор' : 'Ученик' }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Сессии (только для репетиторов) -->
+                <div v-if="user.role === 'tutor'" class="card">
+                    <h3>📚 Создать учебную сессию</h3>
+                    <form @submit.prevent="createSession">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label for="subject">Предмет:</label>
+                                <input type="text" id="subject" v-model="sessionForm.subject" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="description">Описание:</label>
+                                <textarea id="description" v-model="sessionForm.description" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-secondary">Создать сессию</button>
+                    </form>
+                </div>
+
+                <!-- Список сессий -->
+                <div class="card">
+                    <h3>📖 Активные учебные сессии</h3>
+                    <div class="sessions-list">
+                        <div v-for="session in sessions" :key="session.id" class="session-item">
+                            <div>
+                                <strong>{{ session.subject }}</strong>
+                                <div style="font-size: 14px; color: #666;">
+                                    Репетитор: {{ session.tutor.name }}
+                                </div>
+                                <div v-if="session.description" style="font-size: 14px; color: #666; margin-top: 5px;">
+                                    {{ session.description }}
+                                </div>
+                                <div class="session-students">
+                                    Учеников: {{ session.students.length }}
+                                    <span v-if="session.students.length > 0">
+                                        ({{ session.students.map(s => s.name).join(', ') }})
+                                    </span>
+                                </div>
+                            </div>
+                            <button v-if="user.role === 'student'" @click="joinSession(session.id)" 
+                                    class="btn" :disabled="isInSession(session.id)">
+                                {{ isInSession(session.id) ? 'В сессии' : 'Присоединиться' }}
+                            </button>
+                        </div>
+                        <div v-if="sessions.length === 0" style="text-align: center; color: #666;">
+                            Пока нет активных сессий
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const socket = io();
+
+        createApp({
+            data() {
+                return {
+                    user: null,
+                    loginForm: {
+                        name: '',
+                        role: ''
+                    },
+                    messages: [],
+                    newMessage: '',
+                    users: [],
+                    sessions: [],
+                    sessionForm: {
+                        subject: '',
+                        description: ''
+                    }
+                }
+            },
+            mounted() {
+                this.loadData();
+                this.setupSocketListeners();
+            },
+            methods: {
+                login() {
+                    socket.emit('register', this.loginForm);
+                },
+                sendMessage() {
+                    if (this.newMessage.trim()) {
+                        socket.emit('sendMessage', { text: this.newMessage });
+                        this.newMessage = '';
+                    }
+                },
+                createSession() {
+                    if (this.sessionForm.subject.trim()) {
+                        socket.emit('createSession', this.sessionForm);
+                        this.sessionForm.subject = '';
+                        this.sessionForm.description = '';
+                    }
+                },
+                joinSession(sessionId) {
+                    socket.emit('joinSession', sessionId);
+                },
+                isInSession(sessionId) {
+                    const session = this.sessions.find(s => s.id === sessionId);
+                    return session && session.students.some(s => s.name === this.user.name);
+                },
+                async loadData() {
+                    try {
+                        const [messagesRes, usersRes, sessionsRes] = await Promise.all([
+                            fetch('/api/messages'),
+                            fetch('/api/users'),
+                            fetch('/api/sessions')
+                        ]);
+                        
+                        this.messages = await messagesRes.json();
+                        this.users = await usersRes.json();
+                        this.sessions = await sessionsRes.json();
+                    } catch (error) {
+                        console.error('Ошибка загрузки данных:', error);
+                    }
+                },
+                setupSocketListeners() {
+                    socket.on('registered', (data) => {
+                        this.user = data.user;
+                    });
+
+                    socket.on('newMessage', (message) => {
+                        this.messages.push(message);
+                        this.scrollToBottom();
+                    });
+
+                    socket.on('userJoined', (user) => {
+                        const existingUser = this.users.find(u => u.id === user.id);
+                        if (!existingUser) {
+                            this.users.push(user);
+                        }
+                    });
+
+                    socket.on('userLeft', (user) => {
+                        const index = this.users.findIndex(u => u.id === user.id);
+                        if (index !== -1) {
+                            this.users[index].online = false;
+                        }
+                    });
+
+                    socket.on('sessionCreated', (session) => {
+                        this.sessions.push(session);
+                    });
+
+                    socket.on('studentJoinedSession', (data) => {
+                        const session = this.sessions.find(s => s.id === data.sessionId);
+                        if (session) {
+                            const alreadyJoined = session.students.find(s => s.id === data.student.id);
+                            if (!alreadyJoined) {
+                                session.students.push(data.student);
+                            }
+                        }
+                    });
+                },
+                formatTime(timestamp) {
+                    return new Date(timestamp).toLocaleTimeString('ru-RU', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                },
+                scrollToBottom() {
+                    this.$nextTick(() => {
+                        const container = this.$refs.messagesContainer;
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

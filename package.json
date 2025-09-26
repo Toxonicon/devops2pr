@@ -1,0 +1,29 @@
+{
+  "name": "tutor-student-connect",
+  "version": "1.0.0",
+  "description": "Простое приложение для связи репетитора и учеников",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "tutor",
+    "student",
+    "education",
+    "vue",
+    "express"
+  ],
+  "author": "DevOps Student",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

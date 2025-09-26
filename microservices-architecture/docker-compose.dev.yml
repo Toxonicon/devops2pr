@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # Основное приложение в режиме разработки
+  main-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: tutor-main-app-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    depends_on:
+      - notification-service
+      - analytics-service
+    networks:
+      - tutor-dev-network
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+
+  # Микросервис уведомлений - разработка
+  notification-service:
+    build:
+      context: ./microservices/notification-service
+      dockerfile: Dockerfile
+    container_name: tutor-notifications-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - MAIN_APP_URL=http://main-app:3000
+    networks:
+      - tutor-dev-network
+    volumes:
+      - ./microservices/notification-service:/app
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+
+  # Микросервис аналитики - разработка
+  analytics-service:
+    build:
+      context: ./microservices/analytics-service
+      dockerfile: Dockerfile
+    container_name: tutor-analytics-dev
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - MAIN_APP_URL=http://main-app:3000
+    networks:
+      - tutor-dev-network
+    volumes:
+      - ./microservices/analytics-service:/app
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+
+networks:
+  tutor-dev-network:
+    driver: bridge
+    name: tutor-platform-dev-network
