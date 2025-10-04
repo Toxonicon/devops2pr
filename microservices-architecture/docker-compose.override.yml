@@ -1,0 +1,46 @@
+# Этот файл автоматически применяется поверх docker-compose.yml
+# для переопределения настроек в режиме разработки
+version: '3.8'
+
+services:
+  main-app:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: npm run dev
+
+  notification-service:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./microservices/notification-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  analytics-service:
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - ./microservices/analytics-service:/app
+      - /app/node_modules
+    command: npm run dev
+
+  # Добавляем инструменты для разработки
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - tutor-network
+    profiles:
+      - "dev-tools"
+
+volumes:
+  portainer_data:

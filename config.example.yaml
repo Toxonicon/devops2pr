@@ -1,0 +1,30 @@
+# Пример конфигурации для платформы репетитора
+
+# Настройки сервера
+server:
+  port: 3000
+  host: "localhost"
+  
+# Настройки приложения
+app:
+  name: "Tutor-Student Platform"
+  version: "1.0.0"
+  max_messages_in_memory: 100
+  max_users_per_session: 50
+
+# Настройки безопасности
+security:
+  cors_origins: 
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+  
+# Лимиты
+limits:
+  max_message_length: 500
+  max_session_name_length: 100
+  max_user_name_length: 50
+
+# Логирование
+logging:
+  level: "info"
+  format: "combined"
